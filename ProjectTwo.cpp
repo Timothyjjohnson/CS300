@@ -7,191 +7,175 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
-#include <set>
+#include <string>
 #include <algorithm>
-#include <cctype>
-
 using namespace std;
 
-// class to hold info about a course
-class Course {
-public:
+// course structure
+struct Course {
     string courseID;
     string courseTitle;
     vector<string> prerequisites;
+};
 
-    Course(string id, string title, vector<string> prereqs) {
-        courseID = id;
-        courseTitle = title;
-        prerequisites = prereqs;
+// bst node
+struct Node {
+    Course course;
+    Node* left;
+    Node* right;
+
+    Node(Course aCourse) : course(aCourse), left(nullptr), right(nullptr) {}
+};
+
+// coursebst class
+class CourseBST {
+private:
+    Node* root;
+
+    void addNode(Node*& node, Course course) {
+        if (node == nullptr) {
+            node = new Node(course);
+        }
+        else if (course.courseID < node->course.courseID) {
+            addNode(node->left, course);
+        }
+        else {
+            addNode(node->right, course);
+        }
+    }
+
+    void inOrder(Node* node) {
+        if (node == nullptr) {
+            return;
+        }
+        inOrder(node->left);
+        cout << node->course.courseID << ", " << node->course.courseTitle << endl;
+        inOrder(node->right);
+    }
+
+    Node* search(Node* node, string courseID) {
+        if (node == nullptr || node->course.courseID == courseID) {
+            return node;
+        }
+        if (courseID < node->course.courseID) {
+            return search(node->left, courseID);
+        }
+        else {
+            return search(node->right, courseID);
+        }
+    }
+
+public:
+    CourseBST() : root(nullptr) {}
+
+    void Insert(Course course) {
+        addNode(root, course);
+    }
+
+    void PrintCourseList() {
+        inOrder(root);
+    }
+
+    Course* Search(string courseID) {
+        Node* foundNode = search(root, courseID);
+        if (foundNode != nullptr) {
+            return &foundNode->course;
+        }
+        return nullptr;
     }
 };
 
-// function to make all letters uppercase to match courses
-string toUpper(string str) {
-    for (char& ch : str) {
-        ch = toupper(ch);
-    }
-    return str;
-}
-
-// load the course catalog from the file
-vector<Course> importCourseCatalog(string fileName) {
-    vector<Course> courseLibrary;
-    set<string> existingCourseIDs;
-    vector<vector<string>> rawPrereqs;
-
+// load course data function
+void LoadCourses(const string& fileName, CourseBST& catalog) {
     ifstream file(fileName);
 
     if (!file.is_open()) {
-        cout << "Oops! Could not locate the course data file. Please check the file path." << endl;
-        return courseLibrary;
+        cout << "Error opening file: " << fileName << endl;
+        return;
     }
-
-    if (file.peek() == ifstream::traits_type::eof()) {
-        cout << "Warning: The course file is empty. No courses to load." << endl;
-        return courseLibrary;
-    }
-
-    cout << "Loading course catalog... Please hold on." << endl;
 
     string line;
-    // first pass: store courseID and courseTitle
     while (getline(file, line)) {
-        vector<string> courseData;
         stringstream ss(line);
-        string item;
+        string courseID, courseTitle, prereq;
+        vector<string> prereqs;
 
-        while (getline(ss, item, ',')) {
-            courseData.push_back(item);
+        getline(ss, courseID, ',');
+        getline(ss, courseTitle, ',');
+
+        while (getline(ss, prereq, ',')) {
+            prereqs.push_back(prereq);
         }
 
-        if (courseData.size() < 2) {
-            cout << "Warning: This course entry is formatted incorrectly -> " << line << endl;
-            continue;
-        }
-
-        string courseID = toUpper(courseData[0]);
-        string courseTitle = courseData[1];
-
-        existingCourseIDs.insert(courseID);
-        rawPrereqs.push_back(courseData);
-
-        Course newCourse(courseID, courseTitle, {});
-        courseLibrary.push_back(newCourse);
-    }
-
-    // second pass: add valid prereqs for each course
-    for (size_t i = 0; i < courseLibrary.size(); ++i) {
-        for (size_t j = 2; j < rawPrereqs[i].size(); ++j) {
-            string prereq = toUpper(rawPrereqs[i][j]);
-            if (existingCourseIDs.find(prereq) != existingCourseIDs.end()) {
-                courseLibrary[i].prerequisites.push_back(prereq);
-            }
-            else {
-                cout << "Error: Prerequisite " << prereq << " not found. Double-check the course numbers!" << endl;
-            }
-        }
+        Course course = { courseID, courseTitle, prereqs };
+        catalog.Insert(course);
     }
 
     file.close();
-
-    cout << "Course catalog loaded successfully! A total of " << courseLibrary.size() << " courses have been loaded." << endl;
-    return courseLibrary;
+    cout << "Course data loaded successfully" << endl;
 }
 
-// print all courses in order by course ID
-void PrintAlphanumCourses(vector<Course> courseLibrary) {
-    cout << "Sorting courses by course number..." << endl;
-
-    sort(courseLibrary.begin(), courseLibrary.end(), [](Course a, Course b) {
-        return a.courseID < b.courseID;
-        });
-
-    for (Course course : courseLibrary) {
-        cout << "Course ID: " << course.courseID << endl;
-        cout << "Course Title: " << course.courseTitle << endl;
-    }
-}
-
-// show full course details when user searches
-void findCourseDetails(vector<Course> courseLibrary, string searchID) {
-    bool found = false;
-    cout << "Looking for course: " << searchID << " ... Let me check!" << endl;
-
-    for (Course course : courseLibrary) {
-        if (course.courseID == searchID) {
-            cout << "----- COURSE DETAILS -----" << endl;
-            cout << "Course Number: " << course.courseID << endl;
-            cout << "Course Title: " << course.courseTitle << endl;
-
-            if (course.prerequisites.empty()) {
-                cout << "Prerequisites: None. You can take this course as a standalone!" << endl;
+// display course info
+void DisplayCourse(Course course) {
+    cout << course.courseID << ", " << course.courseTitle << endl;
+    if (!course.prerequisites.empty()) {
+        cout << "Prerequisites: ";
+        for (size_t i = 0; i < course.prerequisites.size(); ++i) {
+            cout << course.prerequisites[i];
+            if (i < course.prerequisites.size() - 1) {
+                cout << ", ";
             }
-            else {
-                cout << "Prerequisites:" << endl;
-                for (string prereq : course.prerequisites) {
-                    cout << " - " << prereq << endl;
-                }
-            }
-            found = true;
-            break;
         }
-    }
-
-    if (!found) {
-        cout << "Hmm... That course isn’t in the system. Double-check the course number and try again!" << endl;
-    }
-}
-
-// display the menu and handle user input
-void showMenu(vector<Course>& courseLibrary) {
-    int userChoice = 0;
-    string searchID;
-
-    while (userChoice != 9) {
-        cout << "Welcome to the ABCU Course Catalog System!" << endl;
-        cout << "Please choose one of the following options:" << endl;
-        cout << "1: Load the course data into the system" << endl;
-        cout << "2: Print all courses in alphanumeric order" << endl;
-        cout << "3: Get details for a specific course" << endl;
-        cout << "9: Exit the program" << endl;
-        cout << "Enter your choice: ";
-        cin >> userChoice;
-        cin.ignore();
-
-        switch (userChoice) {
-        case 1:
-            cout << "Loading course data into the system..." << endl;
-            courseLibrary = importCourseCatalog("course_data.txt");
-            break;
-
-        case 2:
-            cout << "Sorting and displaying courses in order..." << endl;
-            PrintAlphanumCourses(courseLibrary);
-            break;
-
-        case 3:
-            cout << "Enter the course ID to view details: ";
-            getline(cin, searchID);
-            findCourseDetails(courseLibrary, toUpper(searchID));
-            break;
-
-        case 9:
-            cout << "Exiting... Goodbye!" << endl;
-            break;
-
-        default:
-            cout << "Invalid choice. Please try again." << endl;
-        }
-
         cout << endl;
     }
 }
 
-// start the program
+// main program
 int main() {
-    vector<Course> courseLibrary;
-    showMenu(courseLibrary);
+    CourseBST catalog;
+    int choice = 0;
+    string fileName = "CS 300 ABCU_Advising_Program_Input.csv";
+
+    while (choice != 4) {
+        cout << endl;
+        cout << "Menu:" << endl;
+        cout << "  1. Load Data Structure" << endl;
+        cout << "  2. Print Course List" << endl;
+        cout << "  3. Print Course" << endl;
+        cout << "  4. Exit" << endl;
+        cout << "Enter choice: ";
+        cin >> choice;
+
+        switch (choice) {
+        case 1:
+            LoadCourses(fileName, catalog);
+            break;
+        case 2:
+            catalog.PrintCourseList();
+            break;
+        case 3: {
+            cout << "Enter course ID (example: CS101): ";
+            string courseID;
+            cin >> courseID;
+            transform(courseID.begin(), courseID.end(), courseID.begin(), ::toupper);
+
+            Course* course = catalog.Search(courseID);
+            if (course != nullptr) {
+                DisplayCourse(*course);
+            }
+            else {
+                cout << "Course not found" << endl;
+            }
+            break;
+        }
+        case 4:
+            cout << "Goodbye" << endl;
+            break;
+        default:
+            cout << "Invalid choice. Please select 1-4." << endl;
+            break;
+        }
+    }
+
     return 0;
 }
